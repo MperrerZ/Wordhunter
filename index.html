@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VOCAB ORBIT — คลังศัพท์กลางอวกาศ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Kanit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<canvas id="stars"></canvas>
+<div class="nebula"></div>
+
+<!-- ================= NAME SCREEN ================= -->
+<div class="auth-wrap" id="authScreen">
+  <div class="auth-card">
+    <div class="logo" style="justify-content:center;margin-bottom:18px;">
+      <div class="logo-mark"></div>
+      <div>
+        <div class="logo-text">VOCAB ORBIT</div>
+        <div class="logo-sub">คลังศัพท์กลางอวกาศ</div>
+      </div>
+    </div>
+    <div style="text-align:center;color:var(--text-dim);font-size:13px;margin-bottom:16px;">
+      พิมพ์ชื่อของคุณ — ถ้าเคยใช้ชื่อนี้มาก่อน จะเห็นคำศัพท์เดิมทั้งหมด
+    </div>
+    <input id="authName" type="text" placeholder="ชื่อของคุณ เช่น Nan" class="auth-input" autocomplete="off">
+    <button id="authSubmit" class="auth-submit">เริ่มใช้งาน 🚀</button>
+    <div class="auth-msg" id="authMsg"></div>
+    <div style="text-align:center;color:var(--text-dim);font-size:11px;margin-top:14px;line-height:1.6;">
+      ⚠ ไม่มีรหัสผ่าน — ใครก็ตามที่พิมพ์ชื่อเดียวกันจะเห็นคำศัพท์ชุดนี้ได้<br>
+      เหมาะสำหรับใช้กันเองในครอบครัว/กลุ่มเพื่อนที่ไว้ใจกัน
+    </div>
+  </div>
+</div>
+
+<!-- ================= APP ================= -->
+<div class="app" id="appRoot" style="display:none;">
+  <header>
+    <div class="logo">
+      <div class="logo-mark"></div>
+      <div>
+        <div class="logo-text">VOCAB ORBIT</div>
+        <div class="logo-sub">คลังศัพท์กลางอวกาศ</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <div class="badge" id="profileBadge">👤 —</div>
+      <div class="badge" id="wordCountBadge">🗂 คลัง: 0 คำ</div>
+      <button class="logout-btn" id="logoutBtn">เปลี่ยนชื่อ</button>
+    </div>
+  </header>
+
+  <nav>
+    <button class="tab-btn active" data-view="catch">ส่งสัญญาณ</button>
+    <button class="tab-btn" data-view="quiz">ภารกิจประจำวัน</button>
+    <button class="tab-btn" data-view="archive">คลังดาว</button>
+  </nav>
+
+  <div class="panel">
+
+    <!-- CATCH VIEW -->
+    <section class="view active" id="view-catch">
+      <div class="console-label">// พิมพ์คำศัพท์ภาษาอังกฤษ แล้วกด Enter</div>
+      <div class="input-wrap">
+        <input id="wordInput" type="text" autocomplete="off" spellcheck="false" placeholder="type a word...">
+        <button class="send-btn" id="sendBtn" title="ส่ง">➤</button>
+      </div>
+      <div class="hint">คำใกล้เคียงจะลอยขึ้นมาให้เลือก — แตะเพื่อเลือกได้เลย</div>
+
+      <div class="orbit-zone" id="orbitZone"></div>
+
+      <div class="result-card" id="resultCard">
+        <div class="result-top">
+          <div class="result-word" id="resWord"></div>
+          <div class="result-phonetic" id="resPhonetic"></div>
+          <button class="speak-btn" id="resSpeak">🔊</button>
+        </div>
+        <div class="result-status" id="resStatus"></div>
+        <div class="result-meaning" id="resMeaning"></div>
+        <div class="result-def" id="resDef"></div>
+      </div>
+    </section>
+
+    <!-- QUIZ VIEW -->
+    <section class="view" id="view-quiz">
+      <div id="quizContainer"></div>
+    </section>
+
+    <!-- ARCHIVE VIEW -->
+    <section class="view" id="view-archive">
+      <input class="archive-search" id="archiveSearch" placeholder="ค้นหาคำศัพท์ในคลัง...">
+      <div class="archive-list" id="archiveList"></div>
+    </section>
+
+  </div>
+
+  <footer>ทุกคำที่บันทึกจะถูกใช้สุ่มออกข้อสอบทุกวัน · คำที่ตอบผิดจะถามซ้ำบ่อยขึ้น</footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="js/config.js"></script>
+<script src="js/supabaseClient.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
