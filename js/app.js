@@ -273,12 +273,16 @@ function updateBadge(){
 
 /* ================= SUPABASE DATA LAYER ================= */
 function rowToWord(r){
+  const meaningsTh = Array.isArray(r.meanings_th) && r.meanings_th.length
+    ? r.meanings_th
+    : (r.meaning_th ? [r.meaning_th] : []);
   return {
     id: r.id,
     word: r.word,
     phonetic: r.phonetic || '',
     defEn: r.def_en || '',
-    meaningTh: r.meaning_th || '',
+    meaningTh: meaningsTh[0] || r.meaning_th || '',
+    meaningsTh: meaningsTh,
     correctStreak: r.correct_streak || 0,
     wrongStreak: r.wrong_streak || 0,
     timesAsked: r.times_asked || 0,
@@ -301,7 +305,8 @@ async function insertWord(entry){
     word: entry.word,
     phonetic: entry.phonetic,
     def_en: entry.defEn,
-    meaning_th: entry.meaningTh
+    meaning_th: entry.meaningTh,
+    meanings_th: entry.meaningsTh || []
   }).select().single();
   if(error){ console.warn('insertWord', error); return null; }
   return rowToWord(data);
@@ -407,11 +412,15 @@ async function handleEnter(){
   }, 3000);
   const data = await fetchWordData(word);
   clearTimeout(slowNoticeTimer);
+  const meaningsTh = (data.meaningsTh && data.meaningsTh.length)
+    ? data.meaningsTh
+    : ['ไม่พบความหมาย ลองแก้ไขในคลังดาวภายหลัง'];
   const draft = {
     word: word,
     phonetic: data.phonetic || '',
     defEn: data.defEn || '',
-    meaningTh: data.meaningTh || 'ไม่พบความหมาย ลองแก้ไขในคลังดาวภายหลัง'
+    meaningTh: meaningsTh[0],
+    meaningsTh: meaningsTh
   };
   const saved = await insertWord(draft);
   if(saved){
@@ -444,7 +453,7 @@ async function fetchWordData(word){
   clearTimeout(dictTimer);
   clearTimeout(transTimer);
 
-  let phonetic='', defEn='', meaningTh='';
+  let phonetic='', defEn='';
   if(dictJson && dictJson[0]){
     const e = dictJson[0];
     phonetic = e.phonetic || (e.phonetics && (e.phonetics.find(p=>p.text)||{}).text) || '';
@@ -453,10 +462,45 @@ async function fetchWordData(word){
       defEn = meaning.definitions[0].definition;
     }
   }
-  if(transJson && transJson.responseData && transJson.responseData.translatedText){
-    meaningTh = transJson.responseData.translatedText;
+
+  const meaningsTh = extractRankedThaiMeanings(transJson);
+  return {phonetic, defEn, meaningsTh};
+}
+
+// Pulls the primary translation plus alternate translations from MyMemory's
+// "matches" array (community translation memory), ranks by match/quality
+// score, dedupes, and returns up to 3 distinct Thai meanings — most
+// commonly-used / highest-confidence first.
+function extractRankedThaiMeanings(transJson){
+  if(!transJson) return [];
+  const candidates = [];
+  if(transJson.responseData && transJson.responseData.translatedText){
+    candidates.push({ text: transJson.responseData.translatedText, score: 1 });
   }
-  return {phonetic, defEn, meaningTh};
+  if(Array.isArray(transJson.matches)){
+    transJson.matches.forEach(m=>{
+      if(!m) return;
+      const text = m.translation || '';
+      if(!text) return;
+      let score = 0.5;
+      if(typeof m.match === 'number') score = m.match;
+      else if(typeof m.quality === 'number') score = m.quality / 100;
+      candidates.push({ text, score });
+    });
+  }
+  candidates.sort((a,b) => b.score - a.score);
+  const seen = new Set();
+  const result = [];
+  for(const c of candidates){
+    const t = c.text.trim();
+    if(!t) continue;
+    const key = t.toLowerCase();
+    if(seen.has(key)) continue;
+    seen.add(key);
+    result.push(t);
+    if(result.length >= 3) break;
+  }
+  return result;
 }
 
 function showLoadingCard(word){
@@ -465,7 +509,7 @@ function showLoadingCard(word){
   document.getElementById('resWord').textContent = word;
   document.getElementById('resPhonetic').textContent = '';
   document.getElementById('resStatus').textContent = '';
-  document.getElementById('resMeaning').innerHTML = '<span class="loading-dots">🛰 กำลังค้นหาความหมายจากอวกาศ...</span>';
+  document.getElementById('resMeaningList').innerHTML = '<li class="loading-dots">🛰 กำลังค้นหาความหมายจากอวกาศ...</li>';
   document.getElementById('resDef').textContent = '';
 }
 
@@ -477,7 +521,14 @@ function showResultCard(entry, isNew){
   const status = document.getElementById('resStatus');
   status.textContent = isNew ? '✓ บันทึกคำใหม่ลงคลังดาวแล้ว' : '📖 มีอยู่ในคลังดาวแล้ว';
   status.className = 'result-status' + (isNew ? ' new' : '');
-  document.getElementById('resMeaning').textContent = entry.meaningTh;
+  const meanings = (entry.meaningsTh && entry.meaningsTh.length) ? entry.meaningsTh : [entry.meaningTh];
+  const list = document.getElementById('resMeaningList');
+  list.innerHTML = '';
+  meanings.forEach(m=>{
+    const li = document.createElement('li');
+    li.textContent = m;
+    list.appendChild(li);
+  });
   document.getElementById('resDef').textContent = entry.defEn ? entry.defEn : '';
 }
 
