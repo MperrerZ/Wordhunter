@@ -363,7 +363,7 @@ function renderSuggestions(prefix){
   zone.innerHTML = '';
   const p = prefix.trim().toLowerCase();
   if(!p){ return; }
-  const savedWords = state.words.map(w=>w.word);
+  const savedWords = state.words.map(w=>w.word).filter(Boolean);
   const pool = Array.from(new Set([...WORD_BANK, ...savedWords]));
   let matches = pool.filter(w => w.startsWith(p) && w !== p);
   matches = shuffle(matches).slice(0,5);
@@ -422,14 +422,19 @@ async function handleEnter(){
     meaningTh: meaningsTh[0],
     meaningsTh: meaningsTh
   };
-  const saved = await insertWord(draft);
-  if(saved){
-    state.words.unshift(saved);
+  const result = await insertWord(draft);
+  if(result.word){
+    state.words.unshift(result.word);
     updateBadge();
-    showResultCard(saved, true);
-    speak(saved.word);
+    showResultCard(result.word, true);
+    speak(result.word.word);
   } else {
-    showResultCard({...draft, correctStreak:0, wrongStreak:0}, true);
+    const errMsg = (result.error && result.error.message) ? result.error.message : 'ไม่ทราบสาเหตุ';
+    showFatalError('บันทึกคำศัพท์ไม่สำเร็จ: ' + errMsg);
+    showResultCard({...draft, correctStreak:0, wrongStreak:0}, false);
+    const statusEl = document.getElementById('resStatus');
+    statusEl.textContent = '⚠ บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง';
+    statusEl.className = 'result-status';
     speak(draft.word);
   }
   input.value = '';
