@@ -133,7 +133,10 @@ nav button:not(.active):hover{color:var(--text);}
 }
 .result-status{font-size:12px;margin-top:6px;color:var(--text-dim);}
 .result-status.new{color:var(--cyan);}
-.result-meaning{margin-top:14px;font-size:19px;font-weight:500;}
+.result-meaning-list{margin:14px 0 0;padding-left:22px;}
+.result-meaning-list li{font-size:19px;font-weight:500;margin-bottom:6px;}
+.result-meaning-list li:first-child{color:var(--gold);font-weight:600;}
+.result-meaning-list li:not(:first-child){font-size:15.5px;color:var(--text-dim);font-weight:400;}
 .result-def{margin-top:8px;font-size:13.5px;color:var(--text-dim);line-height:1.6;font-family:var(--font-mono);}
 .loading-dots{font-family:var(--font-mono);color:var(--text-dim);font-size:14px;}
 
