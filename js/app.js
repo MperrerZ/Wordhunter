@@ -308,8 +308,8 @@ async function insertWord(entry){
     meaning_th: entry.meaningTh,
     meanings_th: entry.meaningsTh || []
   }).select().single();
-  if(error){ console.warn('insertWord', error); return null; }
-  return rowToWord(data);
+  if(error){ console.warn('insertWord', error); return { word: null, error }; }
+  return { word: rowToWord(data), error: null };
 }
 
 async function updateWordRow(id, patch){
