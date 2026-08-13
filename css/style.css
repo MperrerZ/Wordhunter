@@ -185,6 +185,30 @@ nav button:not(.active):hover{color:var(--text);}
 .stat-bad{color:var(--coral);}
 .del-btn{background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:16px;padding:4px 6px;}
 .del-btn:hover{color:var(--coral);}
+.edit-btn{background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:15px;padding:4px 6px;}
+.edit-btn:hover{color:var(--cyan);}
+.word-row-edit-form{width:100%;display:flex;flex-direction:column;gap:8px;}
+.edit-word-input{
+  background:#0d0a26;border:1px solid var(--border);border-radius:8px;color:var(--gold);
+  font-family:var(--font-mono);font-size:15px;padding:8px 10px;outline:none;
+}
+.edit-word-input:focus{border-color:var(--purple);}
+.edit-meaning-input{
+  background:#0d0a26;border:1px solid var(--border);border-radius:8px;color:var(--text);
+  font-family:var(--font-body);font-size:13.5px;padding:8px 10px;outline:none;resize:vertical;
+}
+.edit-meaning-input:focus{border-color:var(--purple);}
+.edit-actions{display:flex;gap:8px;}
+.save-edit-btn{
+  flex:1;background:linear-gradient(135deg,var(--cyan),#2f9e97);color:#04211f;border:none;
+  padding:9px;border-radius:8px;font-family:var(--font-body);font-weight:600;cursor:pointer;font-size:13.5px;
+}
+.cancel-edit-btn{
+  flex:1;background:rgba(255,255,255,0.05);color:var(--text-dim);border:1px solid var(--border);
+  padding:9px;border-radius:8px;font-family:var(--font-body);cursor:pointer;font-size:13.5px;
+}
+.edit-msg{font-size:11.5px;color:var(--text-dim);min-height:14px;}
+.edit-msg.error{color:var(--coral);}
 .archive-empty{text-align:center;color:var(--text-dim);padding:30px 10px;}
 
 footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:26px;font-family:var(--font-mono);}
