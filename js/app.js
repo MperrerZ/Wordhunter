@@ -321,6 +321,17 @@ async function updateWordRow(id, patch){
   if(error) console.warn('updateWordRow', error);
 }
 
+async function editWordRow(id, patch){
+  const dbPatch = {};
+  if('word' in patch) dbPatch.word = patch.word;
+  if('meaningTh' in patch) dbPatch.meaning_th = patch.meaningTh;
+  if('meaningsTh' in patch) dbPatch.meanings_th = patch.meaningsTh;
+  if('defEn' in patch) dbPatch.def_en = patch.defEn;
+  const {error} = await sb.from('words').update(dbPatch).eq('id', id).eq('profile_name', state.profileName);
+  if(error){ console.warn('editWordRow', error); return { ok:false, error }; }
+  return { ok:true, error:null };
+}
+
 async function deleteWordRow(id){
   const {error} = await sb.from('words').delete().eq('id', id).eq('profile_name', state.profileName);
   if(error) console.warn('deleteWordRow', error);
@@ -672,6 +683,10 @@ async function answerQuestion(qIndex, choiceText){
 }
 
 /* ================= ARCHIVE VIEW ================= */
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
 function renderArchive(){
   const list = document.getElementById('archiveList');
   const q = document.getElementById('archiveSearch').value.trim().toLowerCase();
@@ -688,24 +703,68 @@ function renderArchive(){
   words.forEach(w=>{
     const row = document.createElement('div');
     row.className = 'word-row';
-    row.innerHTML = `
-      <div class="word-row-main">
-        <div class="word-row-word">${w.word}</div>
-        <div class="word-row-meaning">${w.meaningTh || '-'}</div>
-      </div>
-      <div class="word-row-stats">
-        <span class="stat-good">✓${w.correctStreak||0}</span> &nbsp;
-        <span class="stat-bad">✗${w.wrongStreak||0}</span>
-      </div>
-      <button class="del-btn" title="ลบคำนี้">🗑</button>
-    `;
-    row.querySelector('.del-btn').addEventListener('click', async ()=>{
-      await deleteWordRow(w.id);
-      state.words = state.words.filter(x=>x.id!==w.id);
-      updateBadge();
-      renderArchive();
-    });
-    row.querySelector('.word-row-word').addEventListener('click', ()=> speak(w.word));
+    renderRowView(row, w);
     list.appendChild(row);
+  });
+}
+
+function renderRowView(row, w){
+  const meaningPreview = (w.meaningsTh && w.meaningsTh.length) ? w.meaningsTh.join(' / ') : (w.meaningTh || '-');
+  row.innerHTML = `
+    <div class="word-row-main">
+      <div class="word-row-word">${escapeHtml(w.word)}</div>
+      <div class="word-row-meaning">${escapeHtml(meaningPreview)}</div>
+    </div>
+    <div class="word-row-stats">
+      <span class="stat-good">✓${w.correctStreak||0}</span> &nbsp;
+      <span class="stat-bad">✗${w.wrongStreak||0}</span>
+    </div>
+    <button class="edit-btn" title="แก้ไข">✏️</button>
+    <button class="del-btn" title="ลบคำนี้">🗑</button>
+  `;
+  row.querySelector('.del-btn').addEventListener('click', async ()=>{
+    await deleteWordRow(w.id);
+    state.words = state.words.filter(x=>x.id!==w.id);
+    updateBadge();
+    renderArchive();
+  });
+  row.querySelector('.word-row-word').addEventListener('click', ()=> speak(w.word));
+  row.querySelector('.edit-btn').addEventListener('click', ()=> renderRowEdit(row, w));
+}
+
+function renderRowEdit(row, w){
+  const meaningsText = (w.meaningsTh && w.meaningsTh.length ? w.meaningsTh : [w.meaningTh || '']).join('\n');
+  row.innerHTML = `
+    <div class="word-row-edit-form">
+      <input class="edit-word-input" type="text" value="${escapeHtml(w.word)}" placeholder="คำศัพท์ภาษาอังกฤษ">
+      <textarea class="edit-meaning-input" rows="3" placeholder="ความหมาย (1 บรรทัด = 1 ความหมาย เรียงสำคัญสุดก่อน)">${escapeHtml(meaningsText)}</textarea>
+      <div class="edit-actions">
+        <button class="save-edit-btn">บันทึก</button>
+        <button class="cancel-edit-btn">ยกเลิก</button>
+      </div>
+      <div class="edit-msg"></div>
+    </div>
+  `;
+  row.querySelector('.cancel-edit-btn').addEventListener('click', ()=> renderRowView(row, w));
+  row.querySelector('.save-edit-btn').addEventListener('click', async ()=>{
+    const newWord = row.querySelector('.edit-word-input').value.trim().toLowerCase();
+    const meaningsRaw = row.querySelector('.edit-meaning-input').value;
+    const meaningsTh = meaningsRaw.split('\n').map(s=>s.trim()).filter(Boolean);
+    const msgEl = row.querySelector('.edit-msg');
+    msgEl.className = 'edit-msg';
+    if(!newWord){ msgEl.textContent = 'กรอกคำศัพท์ด้วยครับ'; msgEl.classList.add('error'); return; }
+    if(meaningsTh.length === 0){ msgEl.textContent = 'กรอกความหมายอย่างน้อย 1 อย่าง'; msgEl.classList.add('error'); return; }
+    msgEl.textContent = 'กำลังบันทึก...';
+    const res = await editWordRow(w.id, { word:newWord, meaningTh:meaningsTh[0], meaningsTh });
+    if(!res.ok){
+      const isDup = res.error && res.error.code === '23505';
+      msgEl.textContent = isDup ? 'คำนี้มีอยู่ในคลังแล้ว ลองใช้คำอื่น' : ('บันทึกไม่สำเร็จ: ' + (res.error && res.error.message ? res.error.message : ''));
+      msgEl.classList.add('error');
+      return;
+    }
+    w.word = newWord;
+    w.meaningTh = meaningsTh[0];
+    w.meaningsTh = meaningsTh;
+    renderRowView(row, w);
   });
 }
