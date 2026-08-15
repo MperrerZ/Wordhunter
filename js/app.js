@@ -565,6 +565,19 @@ function computeWeight(w){
   return 2;
 }
 
+// Picks `n` distinct items from `items`, weighted by `weights`, with no
+// duplicates — so higher-weight (frequently-wrong) words are more LIKELY
+// to be picked, but every picked word is still unique.
+// (Efraimidis-Spirakis weighted reservoir sampling)
+function weightedSampleWithoutReplacement(items, weights, n){
+  const keyed = items.map((item, i) => ({
+    item,
+    key: Math.pow(Math.random(), 1 / Math.max(weights[i], 0.0001))
+  }));
+  keyed.sort((a,b) => b.key - a.key);
+  return keyed.slice(0, n).map(x => x.item);
+}
+
 async function initQuiz(){
   const key = todayKey();
   let quiz = await loadQuizRow(key);
@@ -574,26 +587,21 @@ async function initQuiz(){
       renderQuiz();
       return;
     }
-    let pool = [];
-    state.words.forEach(w=>{
-      const wt = computeWeight(w);
-      for(let i=0;i<wt;i++) pool.push(w.id);
-    });
-    pool = shuffle(pool);
-    let picked = pool.slice(0,5);
-    while(picked.length < 5){
-      picked.push(state.words[Math.floor(Math.random()*state.words.length)].id);
-    }
-    const questions = picked.map(id=>{
-      const w = state.words.find(x=>x.id===id);
+    const questionCount = Math.min(5, state.words.length);
+    const pickedWords = weightedSampleWithoutReplacement(
+      state.words,
+      state.words.map(computeWeight),
+      questionCount
+    );
+    const questions = pickedWords.map(w=>{
       const distractorPool = state.words
-        .filter(x=>x.id!==id && x.meaningTh)
+        .filter(x=>x.id!==w.id && x.meaningTh)
         .map(x=>x.meaningTh)
         .filter(m => m !== w.meaningTh);
       const distractors = shuffle(Array.from(new Set(distractorPool))).slice(0,3);
       while(distractors.length < 3) distractors.push('— ไม่มีตัวเลือกเพิ่มเติม —');
       const choices = shuffle([w.meaningTh, ...distractors]);
-      return { wordId:id, choices, correct:w.meaningTh, answered:false, selected:null };
+      return { wordId:w.id, choices, correct:w.meaningTh, answered:false, selected:null };
     });
     quiz = {date:key, questions, currentIndex:0, score:0, insufficient:false};
     state.quiz = quiz;
