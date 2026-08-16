@@ -124,6 +124,11 @@ nav button:not(.active):hover{color:var(--text);}
   display:none;
 }
 .result-card.show{display:block;animation:fadeIn .3s ease;}
+.result-image{
+  width:100%;height:170px;object-fit:cover;border-radius:12px;margin-bottom:14px;
+  display:none;background:rgba(255,255,255,0.03);border:1px solid var(--border);
+}
+.result-image.show{display:block;animation:fadeIn .3s ease;}
 .result-top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
 .result-word{font-family:var(--font-mono);font-size:26px;font-weight:700;color:var(--gold);}
 .result-phonetic{font-family:var(--font-mono);color:var(--text-dim);font-size:14px;}
@@ -144,6 +149,10 @@ nav button:not(.active):hover{color:var(--text);}
 .quiz-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;}
 .quiz-title{font-family:var(--font-pixel);font-size:13px;color:var(--gold);}
 .quiz-progress{font-family:var(--font-mono);font-size:13px;color:var(--text-dim);}
+.q-image{
+  display:block;margin:6px auto 0;width:100%;max-width:280px;height:150px;object-fit:cover;
+  border-radius:14px;border:1px solid var(--border);
+}
 .q-word{font-family:var(--font-mono);font-size:clamp(24px,6vw,36px);font-weight:700;text-align:center;
   color:#fff;margin:26px 0 6px;letter-spacing:1px;}
 .q-sub{text-align:center;color:var(--text-dim);font-size:13px;margin-bottom:26px;}
@@ -177,7 +186,9 @@ nav button:not(.active):hover{color:var(--text);}
   display:flex;justify-content:space-between;align-items:center;gap:10px;
   background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:12px;padding:13px 16px;
 }
-.word-row-main{min-width:0;}
+.word-row-main{min-width:0;display:flex;align-items:center;gap:12px;}
+.word-row-thumb{width:44px;height:44px;border-radius:10px;object-fit:cover;flex-shrink:0;background:rgba(255,255,255,0.03);border:1px solid var(--border);}
+.word-row-text{min-width:0;}
 .word-row-word{font-family:var(--font-mono);font-weight:700;color:var(--gold);font-size:15.5px;cursor:pointer;}
 .word-row-meaning{font-size:14px;color:var(--text-dim);margin-top:2px;}
 .word-row-stats{font-family:var(--font-mono);font-size:11px;color:var(--text-dim);white-space:nowrap;}
