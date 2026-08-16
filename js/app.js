@@ -283,6 +283,7 @@ function rowToWord(r){
     defEn: r.def_en || '',
     meaningTh: meaningsTh[0] || r.meaning_th || '',
     meaningsTh: meaningsTh,
+    imageUrl: r.image_url || '',
     correctStreak: r.correct_streak || 0,
     wrongStreak: r.wrong_streak || 0,
     timesAsked: r.times_asked || 0,
@@ -306,7 +307,8 @@ async function insertWord(entry){
     phonetic: entry.phonetic,
     def_en: entry.defEn,
     meaning_th: entry.meaningTh,
-    meanings_th: entry.meaningsTh || []
+    meanings_th: entry.meaningsTh || [],
+    image_url: entry.imageUrl || ''
   }).select().single();
   if(error){ console.warn('insertWord', error); return { word: null, error }; }
   return { word: rowToWord(data), error: null };
@@ -431,7 +433,8 @@ async function handleEnter(){
     phonetic: data.phonetic || '',
     defEn: data.defEn || '',
     meaningTh: meaningsTh[0],
-    meaningsTh: meaningsTh
+    meaningsTh: meaningsTh,
+    imageUrl: data.imageUrl || ''
   };
   const result = await insertWord(draft);
   if(result.word){
@@ -451,6 +454,24 @@ async function handleEnter(){
   input.value = '';
 }
 
+async function fetchImageUrl(word){
+  const controller = new AbortController();
+  const timer = setTimeout(()=>controller.abort(), 6000);
+  try{
+    const res = await fetch(`https://api.openverse.org/v1/images/?q=${encodeURIComponent(word)}&page_size=1&mature=false`, {signal: controller.signal});
+    clearTimeout(timer);
+    if(!res.ok) return '';
+    const json = await res.json();
+    if(json.results && json.results[0]){
+      return json.results[0].thumbnail || json.results[0].url || '';
+    }
+    return '';
+  }catch(e){
+    clearTimeout(timer);
+    return '';
+  }
+}
+
 async function fetchWordData(word){
   const dictController = new AbortController();
   const transController = new AbortController();
@@ -465,7 +486,9 @@ async function fetchWordData(word){
     .then(res => res.ok ? res.json() : null)
     .catch(() => null);
 
-  const [dictJson, transJson] = await Promise.all([dictPromise, transPromise]);
+  const imagePromise = fetchImageUrl(word);
+
+  const [dictJson, transJson, imageUrl] = await Promise.all([dictPromise, transPromise, imagePromise]);
   clearTimeout(dictTimer);
   clearTimeout(transTimer);
 
@@ -480,13 +503,27 @@ async function fetchWordData(word){
   }
 
   const meaningsTh = extractRankedThaiMeanings(transJson);
-  return {phonetic, defEn, meaningsTh};
+  return {phonetic, defEn, meaningsTh, imageUrl: imageUrl || ''};
 }
 
 // Pulls the primary translation plus alternate translations from MyMemory's
 // "matches" array (community translation memory), ranks by match/quality
 // score, dedupes, and returns up to 3 distinct Thai meanings — most
 // commonly-used / highest-confidence first.
+function cleanTranslationText(raw){
+  if(!raw) return '';
+  // strip any HTML/XML/SVG markup that sometimes leaks in from scraped
+  // translation-memory sources (e.g. "<g id=\"2\">3</g>")
+  let t = String(raw).replace(/<[^>]*>/g, '');
+  // collapse repeated whitespace
+  t = t.replace(/\s+/g, ' ').trim();
+  return t;
+}
+
+function containsThai(text){
+  return /[\u0E00-\u0E7F]/.test(text);
+}
+
 function extractRankedThaiMeanings(transJson){
   if(!transJson) return [];
   const candidates = [];
@@ -508,8 +545,9 @@ function extractRankedThaiMeanings(transJson){
   const seen = new Set();
   const result = [];
   for(const c of candidates){
-    const t = c.text.trim();
+    const t = cleanTranslationText(c.text);
     if(!t) continue;
+    if(!containsThai(t)) continue; // drop garbage/non-Thai noise (stray tags, source-language echoes, etc.)
     const key = t.toLowerCase();
     if(seen.has(key)) continue;
     seen.add(key);
@@ -522,6 +560,9 @@ function extractRankedThaiMeanings(transJson){
 function showLoadingCard(word){
   const card = document.getElementById('resultCard');
   card.classList.add('show');
+  const img = document.getElementById('resImage');
+  img.classList.remove('show');
+  img.src = '';
   document.getElementById('resWord').textContent = word;
   document.getElementById('resPhonetic').textContent = '';
   document.getElementById('resStatus').textContent = '';
@@ -532,6 +573,16 @@ function showLoadingCard(word){
 function showResultCard(entry, isNew){
   const card = document.getElementById('resultCard');
   card.classList.add('show');
+  const img = document.getElementById('resImage');
+  if(entry.imageUrl){
+    img.onerror = () => img.classList.remove('show');
+    img.src = entry.imageUrl;
+    img.alt = entry.word;
+    img.classList.add('show');
+  } else {
+    img.classList.remove('show');
+    img.src = '';
+  }
   document.getElementById('resWord').textContent = entry.word;
   document.getElementById('resPhonetic').textContent = entry.phonetic || '';
   const status = document.getElementById('resStatus');
@@ -633,12 +684,16 @@ function renderQuiz(){
   }
   const q = quiz.questions[idx];
   const w = state.words.find(x=>x.id===q.wordId);
+  const quizImg = (w && w.imageUrl)
+    ? `<img class="q-image" src="${escapeHtml(w.imageUrl)}" alt="" onerror="this.style.display='none'">`
+    : '';
 
   container.innerHTML = `
     <div class="quiz-head">
       <div class="quiz-title">ภารกิจวันนี้</div>
       <div class="quiz-progress">ข้อ ${idx+1} / ${quiz.questions.length} · คะแนน ${quiz.score}</div>
     </div>
+    ${quizImg}
     <div class="q-word">${w ? w.word : ''}</div>
     <div class="q-sub">คำนี้แปลว่าอะไร?</div>
     <div class="choices" id="choicesWrap"></div>
@@ -718,10 +773,16 @@ function renderArchive(){
 
 function renderRowView(row, w){
   const meaningPreview = (w.meaningsTh && w.meaningsTh.length) ? w.meaningsTh.join(' / ') : (w.meaningTh || '-');
+  const thumb = w.imageUrl
+    ? `<img class="word-row-thumb" src="${escapeHtml(w.imageUrl)}" alt="" onerror="this.style.display='none'">`
+    : '';
   row.innerHTML = `
     <div class="word-row-main">
-      <div class="word-row-word">${escapeHtml(w.word)}</div>
-      <div class="word-row-meaning">${escapeHtml(meaningPreview)}</div>
+      ${thumb}
+      <div class="word-row-text">
+        <div class="word-row-word">${escapeHtml(w.word)}</div>
+        <div class="word-row-meaning">${escapeHtml(meaningPreview)}</div>
+      </div>
     </div>
     <div class="word-row-stats">
       <span class="stat-good">✓${w.correctStreak||0}</span> &nbsp;
