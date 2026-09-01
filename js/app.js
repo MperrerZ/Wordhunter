@@ -283,7 +283,6 @@ function rowToWord(r){
     defEn: r.def_en || '',
     meaningTh: meaningsTh[0] || r.meaning_th || '',
     meaningsTh: meaningsTh,
-    imageUrl: r.image_url || '',
     correctStreak: r.correct_streak || 0,
     wrongStreak: r.wrong_streak || 0,
     timesAsked: r.times_asked || 0,
@@ -307,8 +306,7 @@ async function insertWord(entry){
     phonetic: entry.phonetic,
     def_en: entry.defEn,
     meaning_th: entry.meaningTh,
-    meanings_th: entry.meaningsTh || [],
-    image_url: entry.imageUrl || ''
+    meanings_th: entry.meaningsTh || []
   }).select().single();
   if(error){ console.warn('insertWord', error); return { word: null, error }; }
   return { word: rowToWord(data), error: null };
@@ -379,14 +377,16 @@ function renderSuggestions(prefix){
   const savedWords = state.words.map(w=>w.word).filter(Boolean);
   const pool = Array.from(new Set([...WORD_BANK, ...savedWords]));
   let matches = pool.filter(w => w.startsWith(p) && w !== p);
-  matches = shuffle(matches).slice(0,5);
+  matches = shuffle(matches).slice(0, 12);
 
   matches.forEach((word, i)=>{
     const el = document.createElement('div');
     el.className = 'satellite';
     el.textContent = word;
-    const top = 8 + Math.random()*70;
-    const left = (i * (92/Math.max(matches.length,1))) + Math.random()*6;
+    const col = i % 4;
+    const row = Math.floor(i / 4);
+    const top = 6 + row * 30 + Math.random()*10;
+    const left = col * 24 + Math.random()*6;
     const dur = 4 + Math.random()*3;
     const delay = Math.random()*2;
     el.style.top = top+'%';
@@ -433,8 +433,7 @@ async function handleEnter(){
     phonetic: data.phonetic || '',
     defEn: data.defEn || '',
     meaningTh: meaningsTh[0],
-    meaningsTh: meaningsTh,
-    imageUrl: data.imageUrl || ''
+    meaningsTh: meaningsTh
   };
   const result = await insertWord(draft);
   if(result.word){
@@ -454,29 +453,11 @@ async function handleEnter(){
   input.value = '';
 }
 
-async function fetchImageUrl(word){
-  const controller = new AbortController();
-  const timer = setTimeout(()=>controller.abort(), 6000);
-  try{
-    const res = await fetch(`https://api.openverse.org/v1/images/?q=${encodeURIComponent(word)}&page_size=1&mature=false`, {signal: controller.signal});
-    clearTimeout(timer);
-    if(!res.ok) return '';
-    const json = await res.json();
-    if(json.results && json.results[0]){
-      return json.results[0].thumbnail || json.results[0].url || '';
-    }
-    return '';
-  }catch(e){
-    clearTimeout(timer);
-    return '';
-  }
-}
-
 async function fetchWordData(word){
   const dictController = new AbortController();
   const transController = new AbortController();
-  const dictTimer = setTimeout(()=>dictController.abort(), 6000);
-  const transTimer = setTimeout(()=>transController.abort(), 6000);
+  const dictTimer = setTimeout(()=>dictController.abort(), 4000);
+  const transTimer = setTimeout(()=>transController.abort(), 4000);
 
   const dictPromise = fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`, {signal: dictController.signal})
     .then(res => res.ok ? res.json() : null)
@@ -486,9 +467,7 @@ async function fetchWordData(word){
     .then(res => res.ok ? res.json() : null)
     .catch(() => null);
 
-  const imagePromise = fetchImageUrl(word);
-
-  const [dictJson, transJson, imageUrl] = await Promise.all([dictPromise, transPromise, imagePromise]);
+  const [dictJson, transJson] = await Promise.all([dictPromise, transPromise]);
   clearTimeout(dictTimer);
   clearTimeout(transTimer);
 
@@ -503,7 +482,7 @@ async function fetchWordData(word){
   }
 
   const meaningsTh = extractRankedThaiMeanings(transJson);
-  return {phonetic, defEn, meaningsTh, imageUrl: imageUrl || ''};
+  return {phonetic, defEn, meaningsTh};
 }
 
 // Pulls the primary translation plus alternate translations from MyMemory's
@@ -560,9 +539,6 @@ function extractRankedThaiMeanings(transJson){
 function showLoadingCard(word){
   const card = document.getElementById('resultCard');
   card.classList.add('show');
-  const img = document.getElementById('resImage');
-  img.classList.remove('show');
-  img.src = '';
   document.getElementById('resWord').textContent = word;
   document.getElementById('resPhonetic').textContent = '';
   document.getElementById('resStatus').textContent = '';
@@ -573,16 +549,6 @@ function showLoadingCard(word){
 function showResultCard(entry, isNew){
   const card = document.getElementById('resultCard');
   card.classList.add('show');
-  const img = document.getElementById('resImage');
-  if(entry.imageUrl){
-    img.onerror = () => img.classList.remove('show');
-    img.src = entry.imageUrl;
-    img.alt = entry.word;
-    img.classList.add('show');
-  } else {
-    img.classList.remove('show');
-    img.src = '';
-  }
   document.getElementById('resWord').textContent = entry.word;
   document.getElementById('resPhonetic').textContent = entry.phonetic || '';
   const status = document.getElementById('resStatus');
@@ -682,18 +648,24 @@ function renderQuiz(){
     </div>`;
     return;
   }
+  const q0 = quiz.questions[idx];
+  const w0 = state.words.find(x=>x.id===q0.wordId);
+  if(!w0){
+    // The word behind this question was deleted from the archive after the
+    // quiz was generated — drop the stale question and move on.
+    quiz.questions.splice(idx, 1);
+    saveQuizRow();
+    renderQuiz();
+    return;
+  }
   const q = quiz.questions[idx];
   const w = state.words.find(x=>x.id===q.wordId);
-  const quizImg = (w && w.imageUrl)
-    ? `<img class="q-image" src="${escapeHtml(w.imageUrl)}" alt="" onerror="this.style.display='none'">`
-    : '';
 
   container.innerHTML = `
     <div class="quiz-head">
       <div class="quiz-title">ภารกิจวันนี้</div>
       <div class="quiz-progress">ข้อ ${idx+1} / ${quiz.questions.length} · คะแนน ${quiz.score}</div>
     </div>
-    ${quizImg}
     <div class="q-word">${w ? w.word : ''}</div>
     <div class="q-sub">คำนี้แปลว่าอะไร?</div>
     <div class="choices" id="choicesWrap"></div>
@@ -773,12 +745,8 @@ function renderArchive(){
 
 function renderRowView(row, w){
   const meaningPreview = (w.meaningsTh && w.meaningsTh.length) ? w.meaningsTh.join(' / ') : (w.meaningTh || '-');
-  const thumb = w.imageUrl
-    ? `<img class="word-row-thumb" src="${escapeHtml(w.imageUrl)}" alt="" onerror="this.style.display='none'">`
-    : '';
   row.innerHTML = `
     <div class="word-row-main">
-      ${thumb}
       <div class="word-row-text">
         <div class="word-row-word">${escapeHtml(w.word)}</div>
         <div class="word-row-meaning">${escapeHtml(meaningPreview)}</div>
