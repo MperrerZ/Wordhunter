@@ -41,7 +41,7 @@ window.addEventListener('unhandledrejection', (e)=>{
   }
   function tick(t){
     ctx.clearRect(0,0,w,h);
-    ctx.fillStyle = '#eae8f7';
+    ctx.fillStyle = '#4fff8a';
     for(const s of stars){
       const a = s.baseA + Math.sin(t*s.speed + s.phase)*0.3;
       ctx.globalAlpha = Math.max(0,Math.min(1,a));
@@ -494,13 +494,26 @@ function cleanTranslationText(raw){
   // strip any HTML/XML/SVG markup that sometimes leaks in from scraped
   // translation-memory sources (e.g. "<g id=\"2\">3</g>")
   let t = String(raw).replace(/<[^>]*>/g, '');
+  // remove exclamation/question marks entirely — dictionary meanings
+  // shouldn't carry sentence-style punctuation from casual source text
+  t = t.replace(/[!?]+/g, '');
   // collapse repeated whitespace
   t = t.replace(/\s+/g, ' ').trim();
+  // strip stray leading/trailing punctuation (e.g. a lone trailing period)
+  t = t.replace(/^[.,;:]+|[.,;:]+$/g, '').trim();
   return t;
 }
 
 function containsThai(text){
   return /[\u0E00-\u0E7F]/.test(text);
+}
+
+// Sentence-final particles / casual address terms — if a candidate meaning
+// contains these, it's conversational phrasing bleeding in from the
+// translation-memory source, not a neutral dictionary-style meaning.
+const INFORMAL_MARKERS = ['ครับ','ค่ะ','คะ','นะคะ','นะครับ','จ้า','จ๊ะ','จ๊า','เนอะ','อ่ะ','น่ะ','เหรอ','หรอ','ป่าว','เดี๋ยว'];
+function looksInformal(text){
+  return INFORMAL_MARKERS.some(marker => text.includes(marker));
 }
 
 function extractRankedThaiMeanings(transJson){
@@ -527,6 +540,8 @@ function extractRankedThaiMeanings(transJson){
     const t = cleanTranslationText(c.text);
     if(!t) continue;
     if(!containsThai(t)) continue; // drop garbage/non-Thai noise (stray tags, source-language echoes, etc.)
+    if(looksInformal(t)) continue; // drop casual/conversational phrasing — keep it formal
+    if(t.length > 50) continue; // drop whole translated sentences — keep concise dictionary-style meanings
     const key = t.toLowerCase();
     if(seen.has(key)) continue;
     seen.add(key);
