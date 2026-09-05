@@ -494,13 +494,15 @@ function cleanTranslationText(raw){
   // strip any HTML/XML/SVG markup that sometimes leaks in from scraped
   // translation-memory sources (e.g. "<g id=\"2\">3</g>")
   let t = String(raw).replace(/<[^>]*>/g, '');
-  // remove exclamation/question marks entirely — dictionary meanings
-  // shouldn't carry sentence-style punctuation from casual source text
-  t = t.replace(/[!?]+/g, '');
+  // whitelist approach: keep only Thai script, Latin letters, digits, spaces,
+  // and a small set of safe punctuation — strips emoji, symbols, stray
+  // brackets/quotes/asterisks/currency signs, etc. that leak in from
+  // scraped translation-memory sources
+  t = t.replace(/[^\u0E00-\u0E7Fa-zA-Z0-9\s\-\/()]/g, '');
   // collapse repeated whitespace
   t = t.replace(/\s+/g, ' ').trim();
-  // strip stray leading/trailing punctuation (e.g. a lone trailing period)
-  t = t.replace(/^[.,;:]+|[.,;:]+$/g, '').trim();
+  // strip stray leading/trailing punctuation (e.g. a lone dash or bracket)
+  t = t.replace(/^[-\/()\s]+|[-\/()\s]+$/g, '').trim();
   return t;
 }
 
