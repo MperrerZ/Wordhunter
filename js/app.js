@@ -442,7 +442,20 @@ async function handleEnter(){
     showResultCard(result.word, true);
     speak(result.word.word);
   } else {
-    const errMsg = (result.error && result.error.message) ? result.error.message : 'ไม่ทราบสาเหตุ';
+    const err = result.error || {};
+    const rawMsg = err.message || 'ไม่ทราบสาเหตุ';
+    let errMsg = rawMsg;
+    // A missing column shows up as PGRST204 / "could not find the ... column".
+    // Point straight at the migration instead of showing a raw Postgres error.
+    if(err.code === 'PGRST204' || /column/i.test(rawMsg)){
+      const missing = /meanings_th/i.test(rawMsg) ? 'meanings_th jsonb default \'[]\''
+                    : /image_url/i.test(rawMsg) ? 'image_url text default \'\''
+                    : null;
+      if(missing){
+        errMsg = `ฐานข้อมูลยังไม่มีคอลัมน์ที่ต้องใช้ — ไปที่ Supabase > SQL Editor แล้วรัน: ` +
+                 `alter table words add column if not exists ${missing};`;
+      }
+    }
     showFatalError('บันทึกคำศัพท์ไม่สำเร็จ: ' + errMsg);
     showResultCard({...draft, correctStreak:0, wrongStreak:0}, false);
     const statusEl = document.getElementById('resStatus');
