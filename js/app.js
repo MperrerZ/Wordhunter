@@ -507,11 +507,12 @@ function cleanTranslationText(raw){
   // strip any HTML/XML/SVG markup that sometimes leaks in from scraped
   // translation-memory sources (e.g. "<g id=\"2\">3</g>")
   let t = String(raw).replace(/<[^>]*>/g, '');
-  // whitelist approach: keep only Thai script, Latin letters, digits, spaces,
-  // and a small set of safe punctuation — strips emoji, symbols, stray
-  // brackets/quotes/asterisks/currency signs, etc. that leak in from
-  // scraped translation-memory sources
-  t = t.replace(/[^\u0E00-\u0E7Fa-zA-Z0-9\s\-\/()]/g, '');
+  // whitelist: Thai script, digits, spaces, and a few safe separators only.
+  // Latin letters are deliberately excluded so mixed results like
+  // "ภาวะสมองเสื่อม (dementia)" come out as pure Thai.
+  t = t.replace(/[^\u0E00-\u0E7F0-9\s\-\/()]/g, '');
+  // drop brackets left empty after the English inside them was stripped
+  t = t.replace(/\(\s*\)/g, '');
   // collapse repeated whitespace
   t = t.replace(/\s+/g, ' ').trim();
   // strip stray leading/trailing punctuation (e.g. a lone dash or bracket)
@@ -533,36 +534,45 @@ function looksInformal(text){
 
 function extractRankedThaiMeanings(transJson){
   if(!transJson) return [];
-  const candidates = [];
-  if(transJson.responseData && transJson.responseData.translatedText){
-    candidates.push({ text: transJson.responseData.translatedText, score: 1 });
-  }
-  if(Array.isArray(transJson.matches)){
-    transJson.matches.forEach(m=>{
-      if(!m) return;
-      const text = m.translation || '';
-      if(!text) return;
-      let score = 0.5;
-      if(typeof m.match === 'number') score = m.match;
-      else if(typeof m.quality === 'number') score = m.quality / 100;
-      candidates.push({ text, score });
-    });
-  }
-  candidates.sort((a,b) => b.score - a.score);
-  const seen = new Set();
   const result = [];
-  for(const c of candidates){
-    const t = cleanTranslationText(c.text);
-    if(!t) continue;
-    if(!containsThai(t)) continue; // drop garbage/non-Thai noise (stray tags, source-language echoes, etc.)
-    if(looksInformal(t)) continue; // drop casual/conversational phrasing — keep it formal
-    if(t.length > 50) continue; // drop whole translated sentences — keep concise dictionary-style meanings
+  const seen = new Set();
+
+  const tryAdd = (raw)=>{
+    if(result.length >= 3) return;
+    const t = cleanTranslationText(raw);
+    if(!t) return;
+    if(!containsThai(t)) return;   // no Thai left after cleaning — it was noise
+    if(looksInformal(t)) return;   // casual phrasing, not a dictionary meaning
+    if(t.length > 50) return;      // a whole sentence, not a concise meaning
     const key = t.toLowerCase();
-    if(seen.has(key)) continue;
+    if(seen.has(key)) return;
     seen.add(key);
     result.push(t);
-    if(result.length >= 3) break;
+  };
+
+  // responseData.translatedText is MyMemory's own machine translation —
+  // consistently the closest to Google Translate output, so it always leads.
+  if(transJson.responseData && transJson.responseData.translatedText){
+    tryAdd(transJson.responseData.translatedText);
   }
+
+  // The `matches` array is community-contributed translation memory: useful
+  // for alternate senses but noisy, so only high-confidence entries are used
+  // and they're ranked below the machine translation above.
+  if(Array.isArray(transJson.matches)){
+    const extras = transJson.matches
+      .filter(m => m && m.translation)
+      .map(m => {
+        let score = 0;
+        if(typeof m.match === 'number') score = m.match;
+        else if(typeof m.quality === 'number') score = m.quality / 100;
+        return { text: m.translation, score };
+      })
+      .filter(m => m.score >= 0.85)
+      .sort((a,b) => b.score - a.score);
+    extras.forEach(m => tryAdd(m.text));
+  }
+
   return result;
 }
 
